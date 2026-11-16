@@ -64,10 +64,12 @@ All shortcuts can be changed in **Settings**. You can also press and hold the pi
 
 ## Uninstall
 
-1. Right-click the parrot in the tray and choose **Quit Conure**.
-2. Delete the folder `%USERPROFILE%\Conure`.
-3. Delete the Conure shortcuts from the Start menu, the Desktop and the Startup folder (type `shell:startup` in the Run box to open it).
-4. Optional: the speech model is cached in `%USERPROFILE%\.cache\huggingface`. If setup installed uv for you, `uv self uninstall` removes it.
+Open Conure's **Settings** and click **Uninstall…** at the bottom. You can also use **Windows Settings > Apps > Installed apps > Conure > Uninstall**, or double-click `Uninstall.bat` in this folder. Either way you get two choices:
+
+- **Keep my data** saves your history, dictionary, snippets and settings to a backup file in Documents, then removes the rest. If you install Conure again, restore it from **Settings > Backup**.
+- **Delete everything** removes your data too, along with any backup files you saved from Conure.
+
+Both remove the app folder (`%USERPROFILE%\Conure`), the speech and cleanup models, and the Start menu, Desktop and startup shortcuts. If setup installed uv for you, `uv self uninstall` removes that as well.
 
 ## Troubleshooting
 

@@ -60,6 +60,7 @@ DEFAULTS = {
     "onboarded": False,          # the welcome tour has been shown
     "user_name": "",
     "use_cases": [],             # picked in the welcome tour: emails, chat, docs, coding, social, other
+    "backup_files": [],          # backups you saved, so "Uninstall > Delete everything" can remove them too
     "start_with_windows": True,  # Startup shortcut: Conure runs when you sign in
     "start_in_tray": True,       # when Windows starts Conure, stay in the tray instead of opening the dashboard
     "game_mode": True,           # full-screen game in front -> Conure sleeps: models unloaded, mic closed, keyboard not hooked
@@ -1430,7 +1431,7 @@ def listen_for_reload(app):
             log(f"settings reload failed: {e!r}")
 
 
-BACKUP_SKIP = ("mic", "llm_port", "llm_gpu", "llama_server", "llm_model", "llm_extra_args")  # this PC's hardware and paths
+BACKUP_SKIP = ("mic", "llm_port", "llm_gpu", "llama_server", "llm_model", "llm_extra_args", "backup_files")  # this PC's hardware and paths
 
 
 def make_backup(cfg, learned, db):
@@ -1478,7 +1479,9 @@ class DashboardApi:
 
     def state(self):
         learned = [{"heard": k, "meant": v["to"], "count": v["count"]} for k, v in self._learned()["corrections"].items()]
-        return {"cfg": load_config(), "mics": ["Windows default"] + mic_names(), "learned": learned, "shortcut_labels": SHORTCUT_LABELS}
+        cfg = load_config()
+        return {"cfg": cfg, "mics": ["Windows default"] + mic_names(), "learned": learned, "shortcut_labels": SHORTCUT_LABELS,
+                "backups": [p for p in cfg["backup_files"] if Path(p).is_file()]}
 
     def history(self, query="", limit=500):
         q = f"%{query}%"
@@ -1619,7 +1622,16 @@ class DashboardApi:
         with self.lock:
             data = make_backup(load_config(), self._learned(), self.db)
         path.write_text(json.dumps(data, indent=1, ensure_ascii=False), "utf-8")
+        cfg = load_config()  # remembered so uninstalling can offer to remove it
+        cfg["backup_files"] = list(dict.fromkeys(cfg["backup_files"] + [str(path)]))
+        CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), "utf-8")
         return {"name": path.name, "count": len(data["history"])}
+
+    def uninstall(self, keep):
+        """Settings > Uninstall. Conure (this window included) closes a moment later."""
+        self.db.close()
+        dest = uninstall("keep" if keep else "delete")
+        return {"ok": True, "backup": str(dest) if dest else ""}
 
     def restore(self):
         import webview
@@ -2056,6 +2068,29 @@ def ensure_gui_launcher():
         print(f"couldn't check pythonw.exe: {e!r}")
 
 
+VERSION = "1.1"
+UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Conure"
+
+
+def shortcut_paths():
+    """Start menu, Desktop and Startup shortcuts."""
+    menu = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs"
+    return [menu / "Conure.lnk", shell_folder(0x10) / "Conure.lnk", menu / "Startup" / "Conure.lnk"]
+
+
+def register_uninstall():
+    """List Conure in Windows Settings > Apps, with a working Uninstall button."""
+    import winreg
+    pyw, app = HOME / "venv" / "Scripts" / "pythonw.exe", HOME / "app"
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as k:
+        for name, value in (("DisplayName", "Conure"), ("DisplayIcon", f"{app / 'Conure.exe'},0"), ("Publisher", "Conure"),
+                            ("DisplayVersion", VERSION), ("InstallLocation", str(HOME)),
+                            ("UninstallString", f'"{pyw}" "{app / "dictate.py"}" --uninstall')):
+            winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
+        for name, value in (("NoModify", 1), ("NoRepair", 1), ("EstimatedSize", 3_600_000)):  # size in KB
+            winreg.SetValueEx(k, name, 0, winreg.REG_DWORD, value)
+
+
 def ensure_shortcuts(startup=True):
     """Start menu, auto-start (if startup) and Desktop shortcuts -> Conure.exe; creates or fixes them only when missing or
     stale. Runs at every normal start, so they end up in the real folders even if an earlier install was redirected."""
@@ -2063,10 +2098,14 @@ def ensure_shortcuts(startup=True):
     exe = app_dir / "Conure.exe"
     if not exe.exists():
         return
-    menu = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs"
-    gone = [] if startup else [menu / "Startup" / "Conure.lnk"]
+    try:
+        register_uninstall()
+    except OSError as e:
+        log(f"couldn't add Conure to Windows Settings > Apps: {e!r}")
+    start_menu, desktop, startup_lnk = shortcut_paths()
+    gone = [] if startup else [startup_lnk]
     ps = ["$w=New-Object -ComObject WScript.Shell", "Remove-Item -ErrorAction SilentlyContinue " + ",".join(f"'{p}'" for p in gone)]
-    links = [(menu / "Conure.lnk", ""), (shell_folder(0x10) / "Conure.lnk", "")] + ([(menu / "Startup" / "Conure.lnk", "--background")] if startup else [])
+    links = [(start_menu, ""), (desktop, "")] + ([(startup_lnk, "--background")] if startup else [])
     for lnk, args in links:
         ps.append(f"$s=$w.CreateShortcut('{lnk}'); if ($s.TargetPath -ne '{exe}' -or $s.Arguments -ne '{args}') {{ "
                   f"$s.TargetPath='{exe}'; $s.Arguments='{args}'; $s.WorkingDirectory='{app_dir}'; $s.IconLocation='{exe},0'; "
@@ -2091,6 +2130,80 @@ def install():
     exe = build_launcher(app_dir)
     ensure_shortcuts(load_config()["start_with_windows"])
     print(f"installed to {app_dir}" + (f" (launcher: {exe})" if exe else " (no C# compiler found)"))
+
+
+UNINSTALL_PS = r'''param($ArgsFile)
+# Removes Conure's folder once Conure, its dashboard and its GPU server have closed. Runs from TEMP, outside that folder.
+$a = Get-Content -Raw -LiteralPath $ArgsFile | ConvertFrom-Json
+Start-Sleep -Seconds 2
+foreach ($i in 1..30) {
+    Remove-Item -LiteralPath $a.home -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $a.home)) { break }
+    Start-Sleep -Seconds 1
+}
+foreach ($p in $a.remove) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue }
+Remove-Item -LiteralPath $a.regkey -Recurse -Force -ErrorAction SilentlyContinue
+$msg = $a.note
+if (Test-Path -LiteralPath $a.home) { $msg = "Conure is mostly removed, but some files in $($a.home) were still in use. Restart your PC, then delete that folder." }
+if (-not $a.quiet) { Add-Type -AssemblyName PresentationFramework; [void][System.Windows.MessageBox]::Show($msg, "Conure") }
+Remove-Item -LiteralPath $ArgsFile, $PSCommandPath -Force -ErrorAction SilentlyContinue
+'''
+
+
+def asr_cache_dir():
+    """Where the speech model was downloaded (the Hugging Face cache, outside Conure's folder)."""
+    try:
+        from huggingface_hub import constants
+        root = Path(constants.HF_HUB_CACHE)
+    except Exception:
+        root = Path.home() / ".cache" / "huggingface" / "hub"
+    return root / "models--istupakov--parakeet-tdt-0.6b-v3-onnx"
+
+
+def uninstall(mode=None, quiet=False):
+    """Remove Conure from this PC: the app, both models, the shortcuts and the Windows Settings > Apps entry.
+    mode "keep" saves your data to a new backup file in Documents first and leaves earlier backups alone; "delete" also
+    deletes the backup files you saved from Conure. Without a mode (Windows Settings > Apps > Uninstall) it asks.
+    Returns the new backup file, if any."""
+    title = "Uninstall Conure"
+    if mode is None:
+        answer = user32.MessageBoxW(
+            0, "Do you want to keep a backup of your history, dictionary and settings?\n\n"
+               "Yes: remove Conure, and save your data to a backup file in Documents.\n"
+               "No: remove Conure, and delete your data and any backup files you saved from it.\n"
+               "Cancel: keep Conure.", title, 0x3 | 0x20 | 0x40000)  # Yes/No/Cancel, question icon, on top
+        if answer not in (6, 7):
+            return None
+        mode = "keep" if answer == 6 else "delete"
+        if mode == "delete" and user32.MessageBoxW(
+                0, "This permanently deletes your history, dictionary, snippets, learned words and backup files. Continue?",
+                title, 0x1 | 0x30 | 0x40000) != 1:  # OK/Cancel, warning icon
+            return None
+    cfg = load_config()
+    remove = [str(p) for p in shortcut_paths()] + [str(asr_cache_dir())]
+    note, dest = "Conure has been removed from this PC.", None
+    if mode == "keep":
+        dest = shell_folder(0x05) / f"Conure backup {time.strftime('%Y-%m-%d')}.json"
+        n = 2
+        while dest.exists():
+            dest = dest.with_name(f"Conure backup {time.strftime('%Y-%m-%d')} ({n}).json")
+            n += 1
+        db = open_history(DB_PATH)
+        learned = json.loads(LEARNED_PATH.read_text("utf-8")) if LEARNED_PATH.exists() else {"corrections": {}}
+        dest.write_text(json.dumps(make_backup(cfg, learned, db), indent=1, ensure_ascii=False), "utf-8")
+        db.close()
+        note += f"\n\nYour data is saved in:\n{dest}\n\nAfter reinstalling, restore it from Settings > Backup."
+    else:
+        remove += [p for p in cfg["backup_files"] if Path(p).is_file()]
+    tmp = Path(os.environ.get("TEMP") or HOME.parent)
+    ps1, args = tmp / "conure-uninstall.ps1", tmp / "conure-uninstall.json"
+    ps1.write_text(UNINSTALL_PS, "utf-8")
+    args.write_text(json.dumps({"home": str(HOME), "remove": remove, "regkey": "HKCU:\\" + UNINSTALL_KEY,
+                                "note": note, "quiet": quiet}), "utf-8")
+    subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(ps1), str(args)],
+                     creationflags=subprocess.CREATE_NO_WINDOW)
+    kernel32.SetEvent(named_event(QUIT_EVENT, manual=True))  # Conure, its dashboard and its GPU server close now
+    return dest
 
 
 def transcribe_file(path, cfg):
@@ -2357,6 +2470,8 @@ def main():
         return transcribe_file(sys.argv[sys.argv.index("--file") + 1], cfg)
     if "--install" in sys.argv:
         return install()
+    if "--uninstall" in sys.argv:  # --keep / --delete skip the question
+        return uninstall("keep" if "--keep" in sys.argv else "delete" if "--delete" in sys.argv else None)
     if "--dashboard" in sys.argv:
         return run_dashboard()
     if already_running():  # e.g. clicked in the Start menu: just bring up the dashboard of the running one

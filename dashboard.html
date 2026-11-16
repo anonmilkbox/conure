@@ -228,6 +228,25 @@ select { width: 300px; }
 .ob-nav .skip { margin-right: auto; color: var(--ink3); }
 .ob-note { font-size: 12.5px; color: var(--ink3); }
 @media (prefers-reduced-motion: reduce) { .ob-step.fwd, .ob-step.back { animation: none; } }
+
+/* Uninstall dialog */
+.modal { background: rgba(17, 22, 14, .45); }
+.modal .ob-card { width: min(520px, 100%); animation: pop 200ms var(--ease-out); }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } }
+.un-title { font-size: 26px; margin: 0 0 6px; }
+.un-lead { color: var(--ink2); margin: 0 0 18px; }
+.choice { display: grid; grid-template-columns: 18px 1fr; gap: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--line2); border-radius: 14px; cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease; }
+.choice:has(input:checked) { border-color: var(--green); background: var(--green-soft); }
+.choice:has(input[value="delete"]:checked) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--card)); }
+.choice input[value="delete"] { accent-color: var(--danger); }
+.choice input { accent-color: var(--green); margin: 3px 0 0; }
+.choice > span { color: var(--ink2); font-size: 13.5px; }
+.choice b { display: block; color: var(--ink); font-size: 14.5px; margin-bottom: 2px; }
+.btn.danger { background: var(--danger); color: var(--on-green); }
+.btn.danger:hover { filter: brightness(1.08); }
+.btn[disabled] { opacity: .6; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .modal .ob-card { animation: none; } }
 </style>
 </head>
 <body>
@@ -322,7 +341,9 @@ select { width: 300px; }
     <div class="err" id="backup-err"></div>
     <div class="eyebrow group-title">Help</div>
     <div class="card group"><div class="set"><div class="l"><b>Welcome tour</b><span>The intro again: mic check, shortcuts and how Conure learns</span></div>
-      <button class="btn ghost" id="replay-tour">Show tour</button></div></div>
+      <button class="btn ghost" id="replay-tour">Show tour</button></div>
+      <div class="set"><div class="l"><b>Uninstall Conure</b><span>Remove the app and its models from this PC. You choose whether to keep a backup of your data</span></div>
+      <button class="btn ghost" id="open-uninstall">Uninstall…</button></div></div>
   </section>
 </main>
 <div class="toast" id="toast"></div>
@@ -332,6 +353,17 @@ select { width: 300px; }
     <div class="ob-step" id="ob-step"></div>
     <div class="ob-nav"><button class="toggle-heard skip" id="ob-skip">Skip the tour</button>
       <button class="btn ghost" id="ob-back">Back</button><button class="btn" id="ob-next">Next</button></div>
+  </div>
+</div>
+<div class="onboard modal" id="uninstall" hidden>
+  <div class="ob-card" role="dialog" aria-modal="true" aria-labelledby="un-title">
+    <h1 id="un-title" class="un-title">Uninstall Conure?</h1>
+    <p class="lead un-lead">This removes Conure, its speech and cleanup models (about 3.5 GB), its shortcuts and its startup entry.</p>
+    <label class="choice"><input type="radio" name="un" value="keep" checked>
+      <span><b>Keep my data</b>Your history, dictionary, snippets and settings are saved to a backup file in Documents first. Backups you saved earlier stay where they are.</span></label>
+    <label class="choice"><input type="radio" name="un" value="delete">
+      <span><b>Delete everything</b><span id="un-del-note"></span></span></label>
+    <div class="ob-nav"><span class="skip"></span><button class="btn ghost" id="un-cancel">Cancel</button><button class="btn danger" id="un-go">Uninstall</button></div>
   </div>
 </div>
 
@@ -658,6 +690,26 @@ $("#ob-back").onclick = () => move(-1);
 $("#ob-skip").onclick = finishTour;
 $("#ob-step").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") move(1); });
 $("#replay-tour").onclick = startTour;
+
+// ---------- Uninstall ----------
+$("#open-uninstall").onclick = async () => {
+  const n = (await api.state()).backups.length;
+  $("#un-del-note").textContent = n
+    ? `Your data is deleted, along with the ${n} backup file${n > 1 ? "s" : ""} you saved from Conure. This can't be undone.`
+    : "Your history, dictionary, snippets and settings are deleted. This can't be undone.";
+  document.querySelector('input[name="un"][value="keep"]').checked = true;
+  $("#un-go").disabled = false;
+  $("#un-go").textContent = "Uninstall";
+  $("#uninstall").hidden = false;
+};
+$("#un-cancel").onclick = () => { $("#uninstall").hidden = true; };
+$("#uninstall").addEventListener("keydown", (e) => { if (e.key === "Escape") $("#uninstall").hidden = true; });
+$("#un-go").onclick = async () => {
+  const keep = document.querySelector('input[name="un"]:checked').value === "keep";
+  $("#un-go").disabled = true;
+  $("#un-go").textContent = "Uninstalling…";
+  await api.uninstall(keep);  // Conure closes itself a moment later
+};
 
 // ---------- Day / night ----------
 function showTheme() {
