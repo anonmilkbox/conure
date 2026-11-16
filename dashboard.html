@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conure</title>
+<script src="theme.js"></script>  <!-- written by the app from your setting, read before first paint: no white flash -->
+<script>
+if (!document.documentElement.dataset.theme)
+  document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+</script>
+<style>
+@font-face { font-family: Figtree; src: url(../fonts/Figtree.ttf) format("truetype"); font-weight: 300 900; }
+@font-face { font-family: Fredoka; src: url(../fonts/Fredoka.ttf) format("truetype"); font-weight: 300 700; }
+/* Conure brand. Daylight: conure green, sun-conure orange, cream from the logo tile.
+   Night roost: green-black, brighter leaf green, the same warm orange, cream text. */
+:root {
+  --bg: #fffbf2; --side: #fff3d6; --line: #f2e7cb; --line2: #e6d7b0; --card: #fff; --hover: #fbeacb; --row-hover: #fffaee;
+  --ink: #1e2914; --ink2: #464e3c; --ink3: #676b59; --danger: #b4441c;
+  --green: #3f7a14; --green-hover: #346411; --green-soft: #ebf4dd; --green-line: #d3e6b8; --on-green: #fff;
+  --orange: #ef9f27; --orange-soft: #ffe7bf; --thumb-hover: #d9c79a; --toast-bg: #1e2914; --toast-ink: #fff;
+  --radius: 16px; --shadow: 0 1px 2px rgba(30,41,20,.05), 0 8px 24px rgba(120,90,20,.06);
+  --display: Fredoka, "Segoe UI Variable Display", "Segoe UI", sans-serif; --sans: Figtree, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --spring: cubic-bezier(.34, 1.36, .64, 1); --ease-out: cubic-bezier(.23, 1, .32, 1);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #11160e; --side: #171f12; --line: #26321e; --line2: #34442a; --card: #1a2314; --hover: #232f1b; --row-hover: #1e2817;
+  --ink: #f1ecdc; --ink2: #cfcab6; --ink3: #9a9e88; --danger: #ef7f5a;
+  --green: #8cc63f; --green-hover: #9fd451; --green-soft: #22301a; --green-line: #34502a; --on-green: #11160e;
+  --orange: #f5a524; --orange-soft: #3a2c12; --thumb-hover: #4a5c3c; --toast-bg: #f1ecdc; --toast-ink: #11160e;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.22);
+  color-scheme: dark;
+}
+:root[data-theme="dark"] input.search { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='none' stroke='%239a9e88' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='6.5' cy='6.5' r='5'/%3E%3Cpath d='m10.5 10.5 3.5 3.5'/%3E%3C/svg%3E"); }
+
+/* Day/night switch: the sun rolls over and becomes the moon, clouds sink, stars come out */
+.daynight { all: unset; position: relative; width: 60px; height: 30px; border-radius: 999px; cursor: pointer; flex: none; overflow: hidden;
+  background: linear-gradient(180deg, #8fd0f2, #cdeaf8); box-shadow: inset 0 1px 3px rgba(20,40,60,.25); transition: transform 160ms var(--ease-out); }
+.daynight::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, #0d1626, #1d2d47); opacity: 0; transition: opacity 400ms ease; }
+.daynight:active { transform: scale(.95); }
+.daynight:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.daynight .orb { position: absolute; left: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffd66b, #ef9f27); box-shadow: 0 0 0 3px rgba(255,214,107,.35), 0 0 10px rgba(239,159,39,.55);
+  transition: transform 520ms var(--spring), background 300ms ease, box-shadow 300ms ease; }
+.daynight .crater { position: absolute; border-radius: 50%; background: #cfc8b0; opacity: 0; transform: scale(.6); transition: opacity 250ms ease, transform 250ms var(--ease-out); }
+.daynight .k1 { width: 6px; height: 6px; left: 5px; top: 5px; } .daynight .k2 { width: 4px; height: 4px; left: 12px; top: 13px; }
+.daynight .cloud { position: absolute; height: 6px; border-radius: 999px; background: #fff; transition: transform 300ms var(--ease-out), opacity 250ms ease; }
+.daynight .c1 { width: 16px; right: 7px; top: 8px; } .daynight .c2 { width: 11px; right: 15px; top: 17px; opacity: .85; }
+.daynight .star { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; opacity: 0; transform: scale(.5);
+  transition: opacity 250ms ease, transform 300ms var(--ease-out); }
+.daynight .s1 { left: 9px; top: 7px; } .daynight .s2 { left: 17px; top: 18px; width: 2px; height: 2px; } .daynight .s3 { left: 24px; top: 9px; width: 2px; height: 2px; }
+[data-theme="dark"] .daynight::before { opacity: 1; }
+[data-theme="dark"] .daynight .orb { transform: translateX(30px) rotate(160deg); background: radial-gradient(circle at 35% 35%, #fbf7ea, #e4dcc2);
+  box-shadow: 0 0 0 3px rgba(241,236,220,.12), 0 0 12px rgba(241,236,220,.35); }
+[data-theme="dark"] .daynight .crater { opacity: 1; transform: none; transition-delay: 150ms; }
+[data-theme="dark"] .daynight .cloud { transform: translateY(14px); opacity: 0; }
+[data-theme="dark"] .daynight .star { opacity: 1; transform: none; }
+[data-theme="dark"] .daynight .s1 { transition-delay: 180ms; } [data-theme="dark"] .daynight .s2 { transition-delay: 240ms; } [data-theme="dark"] .daynight .s3 { transition-delay: 300ms; }
+.theme-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: var(--ink2); font-weight: 500; }
+/* the whole app washes into the other theme in a circle from the switch (see setTheme) */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) {
+  .daynight, .daynight *, .daynight::before { transition-duration: 0ms !important; transition-delay: 0ms !important; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+body { display: flex; overflow: hidden; user-select: none; }
+::selection { background: var(--orange-soft); }
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 999px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--thumb-hover); }
+::-webkit-scrollbar-button { display: none; }
+
+aside { width: 228px; flex: none; background: var(--side); border-right: 1px solid var(--line); padding: 22px 14px 16px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 24px; font: 600 22px var(--display); color: var(--green); letter-spacing: -.01em; }
+.brand img { width: 34px; height: 34px; border-radius: 10px; box-shadow: 0 1px 3px rgba(120,90,20,.18); }
+nav { display: flex; flex-direction: column; gap: 2px; }
+nav button { all: unset; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 10px; color: var(--ink2); cursor: pointer; font-weight: 500; }
+nav button:hover { background: var(--hover); color: var(--ink); }
+nav button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(120,90,20,.1); }
+nav button.on svg { color: var(--green); }
+svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.side-foot { margin-top: auto; padding: 14px 10px 4px; font-size: 12px; color: var(--ink3); line-height: 2; }
+.side-foot .live { display: flex; align-items: center; gap: 7px; color: var(--ink2); font-weight: 500; margin-bottom: 6px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(63,122,20,.16); }
+kbd { font: 500 11px var(--sans); background: var(--card); border: 1px solid var(--line2); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; color: var(--ink2); }
+
+main { flex: 1; overflow-y: auto; padding: 48px 56px 72px; }
+.page { max-width: 800px; margin: 0 auto; display: none; animation: in .18s ease-out; }
+.page.on { display: block; }
+@keyframes in { from { opacity: 0; transform: translateY(4px); } }
+h1 { font: 600 38px/1.12 var(--display); letter-spacing: -.01em; margin: 0 0 6px; }
+h2 { font: 600 24px/1.2 var(--display); margin: 0; }
+.sub { color: var(--ink3); margin: 0 0 30px; font-size: 14.5px; }
+.eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink3); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+textarea { font: 14px/1.5 var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--line2); border-radius: 10px; padding: 9px 12px; outline: none; resize: vertical; user-select: text; transition: border-color .12s, box-shadow .12s; }
+.snip-form { padding: 18px 20px 6px; display: grid; gap: 10px; }
+.snip { display: grid; grid-template-columns: minmax(140px, 220px) 1fr auto; gap: 18px; align-items: start; padding: 14px 16px 14px 20px; border-top: 1px solid var(--line); }
+.snip:first-child { border-top: 0; }
+.snip .trig { font-weight: 600; color: var(--green); }
+.snip .trig::before { content: "“"; color: var(--orange); } .snip .trig::after { content: "”"; color: var(--orange); }
+.snip .body { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink2); user-select: text; }
+.stat { padding: 16px 20px; }
+.stat b { display: block; font: 600 30px/1.1 var(--display); color: var(--green); margin-bottom: 2px; }
+.stat span { color: var(--ink3); font-size: 12.5px; }
+.last { padding: 22px 26px 18px; }
+.last p { font-size: 17px; line-height: 1.6; margin: 10px 0 18px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; max-height: 240px; overflow-y: auto; }
+.last p.placeholder { color: var(--ink3); font-size: 15px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.meta { color: var(--ink3); font-size: 12.5px; margin-right: auto; }
+.btn { all: unset; cursor: pointer; padding: 8px 18px; border-radius: 999px; font-weight: 600; font-size: 13px; background: var(--green); color: var(--on-green); transition: background .12s; }
+.btn:hover { background: var(--green-hover); }
+.btn.ghost { background: transparent; color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line2); }
+.btn.ghost:hover { background: var(--hover); color: var(--ink); }
+
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 40px 0 6px; }
+input[type=text], input[type=search], select { font: 14px var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--line2); border-radius: 10px; padding: 8px 12px; outline: none; transition: border-color .12s, box-shadow .12s; }
+input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(63,122,20,.12); }
+input.search { width: 260px; padding-left: 34px; background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='none' stroke='%236e6d69' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='6.5' cy='6.5' r='5'/%3E%3Cpath d='m10.5 10.5 3.5 3.5'/%3E%3C/svg%3E") no-repeat 12px center; }
+.day { font-size: 11.5px; font-weight: 600; color: var(--ink3); margin: 22px 2px 8px; letter-spacing: .07em; text-transform: uppercase; }
+.list { overflow: hidden; }
+.item { display: grid; grid-template-columns: 78px 1fr auto; gap: 18px; align-items: start; padding: 14px 16px 14px 20px; border-top: 1px solid var(--line); cursor: pointer; transition: background .1s; }
+.item:first-child { border-top: 0; }
+.item:hover { background: var(--row-hover); }
+.item time { color: var(--ink3); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.item .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.item.open .t { display: block; white-space: pre-wrap; user-select: text; }
+.item .app { color: var(--ink3); font-size: 12px; margin-top: 3px; }
+.item .app .more { color: var(--green); font-weight: 600; margin-left: 8px; }
+.item.open .app .more { display: none; }
+.heard { display: none; margin-top: 12px; padding: 12px 14px; background: var(--side); border: 1px solid var(--line); border-radius: 12px; cursor: auto; }
+.item.open .heard, .last .heard.on { display: block; }
+.heard .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.heard .label { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink3); }
+.heard .label::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--orange); margin-right: 7px; vertical-align: 1px; }
+.heard .raw { color: var(--ink2); font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.heard .same { color: var(--ink3); font-size: 13px; }
+.heard .icon { width: 26px; height: 26px; }
+.toggle-heard { all: unset; cursor: pointer; color: var(--green); font-weight: 600; font-size: 12.5px; }
+.toggle-heard:hover { text-decoration: underline; }
+.acts { display: flex; gap: 2px; opacity: 0; transition: opacity .12s; margin-top: -4px; }
+.item:hover .acts, .item.open .acts { opacity: 1; }
+.icon { all: unset; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--ink3); }
+.icon:hover { background: var(--hover); color: var(--ink); }
+.icon svg { width: 16px; height: 16px; }
+.empty { padding: 40px; text-align: center; color: var(--ink3); }
+
+.group { padding: 4px 24px; margin-bottom: 18px; }
+.group-title { margin: 28px 2px 10px; }
+.set { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 15px 0; border-top: 1px solid var(--line); }
+.set:first-child { border-top: 0; }
+.set .l b { display: block; font-weight: 600; }
+.set .l span { color: var(--ink3); font-size: 12.5px; }
+.switch { position: relative; width: 40px; height: 24px; flex: none; cursor: pointer; }
+.switch input { display: none; }
+.switch i { position: absolute; inset: 0; background: var(--line2); border-radius: 999px; transition: background .15s; }
+.switch i::after { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform .15s; }
+.switch input:checked + i { background: var(--green); }
+.switch input:checked + i::after { transform: translateX(16px); }
+.sc { display: flex; align-items: center; gap: 6px; }
+.capture { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 168px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line2); background: var(--card); color: var(--ink2); font-weight: 500; transition: border-color .12s, box-shadow .12s; }
+.capture:hover { border-color: var(--ink3); }
+.capture kbd { font-size: 12px; padding: 2px 8px; color: var(--ink); }
+.capture.listening { border-color: var(--green); color: var(--ink); animation: listen 1.3s ease-in-out infinite; cursor: default; }
+.capture.pending { border-color: var(--green); cursor: default; }
+@keyframes listen { 0%, 100% { box-shadow: 0 0 0 3px rgba(63,122,20,.12); } 50% { box-shadow: 0 0 0 6px rgba(63,122,20,.04); } }
+.icon.ok { background: var(--green); color: var(--on-green); }
+.icon.ok:hover { background: var(--green-hover); color: var(--on-green); }
+.sc .icon { width: 34px; height: 34px; border-radius: 10px; }
+.wide { width: 400px; }
+select { width: 300px; }
+.err { color: var(--danger); font-size: 12.5px; min-height: 18px; margin: 2px 2px 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 18px 20px; min-height: 64px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--green-soft); border: 1px solid var(--green-line); border-radius: 999px; padding: 5px 6px 5px 13px; font-weight: 500; }
+.chip button { all: unset; cursor: pointer; color: var(--ink3); width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; }
+.chip button:hover { background: var(--hover); color: var(--ink); }
+.chip svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.add { display: flex; gap: 8px; padding: 0 20px 18px; }
+.add input { flex: 1; }
+.learn { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 12px 16px 12px 20px; border-top: 1px solid var(--line); }
+.learn:first-child { border-top: 0; }
+.learn .arrow { color: var(--ink3); margin: 0 8px; }
+.learn small { color: var(--ink3); margin-left: 10px; }
+
+.toast { position: fixed; left: calc(50% + 114px); bottom: 30px; transform: translate(-50%, 16px); background: var(--toast-bg); color: var(--toast-ink); padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 500; opacity: 0; transition: .2s; pointer-events: none; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.btn { transition: background .12s, transform 160ms var(--ease-out); }
+.btn:active { transform: scale(.97); }
+
+/* Welcome tour (first launch, or Settings > Welcome tour) */
+.onboard { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.onboard[hidden] { display: none; }
+.ob-card { width: min(600px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); padding: 34px 40px 26px; }
+.ob-dots { display: flex; gap: 6px; margin-bottom: 26px; }
+.ob-dots i { height: 6px; width: 6px; border-radius: 999px; background: var(--line2); transition: width 250ms var(--ease-out), background-color 250ms ease; }
+.ob-dots i.on { width: 22px; background: var(--green); }
+.ob-step { min-height: 320px; }
+.ob-step.fwd { animation: ob-fwd 260ms var(--ease-out); }
+.ob-step.back { animation: ob-back 260ms var(--ease-out); }
+@keyframes ob-fwd { from { opacity: 0; transform: translateX(14px); } }
+@keyframes ob-back { from { opacity: 0; transform: translateX(-14px); } }
+.ob-step h1 { font-size: 30px; margin: 0 0 8px; }
+.ob-step .lead { color: var(--ink2); font-size: 15px; margin: 0 0 22px; }
+.ob-logo { width: 64px; height: 64px; border-radius: 18px; box-shadow: 0 2px 8px rgba(120,90,20,.18); margin-bottom: 18px; }
+.ob-field { display: grid; gap: 6px; margin-bottom: 16px; }
+.ob-field label { font-weight: 600; }
+.ob-field input, .ob-field select, #ob-try { width: 100%; }
+.ob-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.ob-chip { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line2); color: var(--ink2); font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 160ms var(--ease-out); }
+.ob-chip:active { transform: scale(.96); }
+.ob-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.ob-chip[aria-pressed="true"] { background: var(--green-soft); border-color: var(--green-line); color: var(--ink); }
+.ob-meter { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 4px 0 8px; }
+.ob-meter i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--green), var(--orange)); transition: transform 90ms linear; }
+.ob-keys { display: flex; align-items: center; gap: 6px; color: var(--ink2); margin: 0 0 14px; }
+.ob-keys kbd { font-size: 14px; padding: 4px 10px; color: var(--ink); }
+.ob-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.ob-list li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; color: var(--ink2); }
+.ob-list li b { color: var(--ink); }
+.ob-list .n { min-width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green); font-weight: 700; font-size: 12.5px; }
+.ob-nav { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+.ob-nav .skip { margin-right: auto; color: var(--ink3); }
+.ob-note { font-size: 12.5px; color: var(--ink3); }
+@media (prefers-reduced-motion: reduce) { .ob-step.fwd, .ob-step.back { animation: none; } }
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><img src="icon.ico" alt="">Conure</div>
+  <nav>
+    <button data-page="home" class="on"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+    <button data-page="dictionary"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H20"/></svg>Dictionary</button>
+    <button data-page="snippets"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>Snippets</button>
+    <button data-page="settings"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</button>
+  </nav>
+  <div class="side-foot">
+    <div class="theme-row">
+      <button class="daynight" id="theme" role="switch" aria-label="Night mode">
+        <i class="cloud c1"></i><i class="cloud c2"></i><i class="star s1"></i><i class="star s2"></i><i class="star s3"></i>
+        <span class="orb"><i class="crater k1"></i><i class="crater k2"></i></span>
+      </button><span id="theme-name">Daylight</span>
+    </div>
+    <div class="live"><span class="dot"></span>Running on this PC</div>
+    <div><kbd id="k-dictate">Ctrl+Win</kbd> hold to talk</div>
+    <div>Double-tap for hands-free</div>
+    <div><kbd id="k-paste">Shift+Alt+Z</kbd> paste last</div>
+  </div>
+</aside>
+
+<main>
+  <section class="page on" id="home">
+    <h1 id="hello">Hey, welcome back</h1>
+    <p class="sub">Conure's listening. Everything you say stays on this computer.</p>
+    <div class="stats">
+      <div class="card stat"><b id="s-words">0</b><span>words today</span></div>
+      <div class="card stat"><b id="s-wpm">0</b><span>words per minute</span></div>
+      <div class="card stat"><b id="s-saved">0 min</b><span>saved vs typing</span></div>
+      <div class="card stat"><b id="s-total">0</b><span>words all time</span></div>
+    </div>
+    <div class="card last">
+      <div class="eyebrow">Last transcription</div>
+      <p id="last-text" class="placeholder">Nothing yet. Hold your shortcut and Conure will write it down.</p>
+      <div class="row"><span class="meta" id="last-meta"></span><button class="toggle-heard" id="last-heard-toggle">Show what Conure heard</button><button class="btn" id="last-copy">Copy</button></div>
+      <div class="heard" id="last-heard"></div>
+    </div>
+    <div class="section-head"><h2>History</h2><input type="search" class="search" id="search" placeholder="Search your dictations"></div>
+    <div id="history"></div>
+  </section>
+
+  <section class="page" id="dictionary">
+    <h1>Dictionary</h1>
+    <p class="sub">Names and words that should always be spelled your way.</p>
+    <div class="card">
+      <div class="chips" id="chips"></div>
+      <div class="add"><input type="text" id="new-word" placeholder="Add a word or name, like your company or a teammate"><button class="btn" id="add-word">Add</button></div>
+    </div>
+    <h2 class="group-title">Learned from your edits</h2>
+    <p class="sub" style="margin-bottom:12px">When you fix a word right after it's pasted, it's remembered here. After two fixes it's corrected automatically.</p>
+    <div class="card list" id="learned"></div>
+  </section>
+
+  <section class="page" id="snippets">
+    <h1>Snippets</h1>
+    <p class="sub">Say a trigger and Conure types the saved text: your email, a booking link, an address, a sign-off.</p>
+    <div class="card list" id="snippet-list"></div>
+    <div class="eyebrow group-title">New snippet</div>
+    <div class="card snip-form">
+      <input type="text" id="snip-trigger" placeholder="Trigger, like: my booking link">
+      <textarea id="snip-text" rows="3" placeholder="Text to paste, like: https://calendly.com/you/30min"></textarea>
+      <div class="row"><span class="meta">Works said on its own, or in the middle of a sentence.</span><button class="btn" id="add-snip">Save snippet</button></div>
+      <div class="err" id="snip-err"></div>
+    </div>
+  </section>
+
+  <section class="page" id="settings">
+    <h1>Settings</h1>
+    <p class="sub">Changes save automatically and apply right away.</p>
+    <div class="eyebrow group-title">General</div>
+    <div class="card group" id="toggles"></div>
+    <div class="eyebrow group-title">Pill</div>
+    <div class="card group"><div class="set"><div class="l"><b>Show the pill</b><span>The small bar above the taskbar. Hidden, Conure still works with your shortcut</span></div>
+      <select id="pill"><option value="always">Always</option><option value="talking">Only while I talk</option><option value="never">Never</option></select></div></div>
+    <div class="eyebrow group-title">Formatting</div>
+    <div class="card group"><div class="set"><div class="l"><b>List bullets</b><span>Used when you name three or more things in a row</span></div>
+      <select id="bullet"><option value="*">*  Asterisk</option><option value="•">•  Dot</option><option value="-">-  Dash</option></select></div></div>
+    <div class="eyebrow group-title">Microphone</div>
+    <div class="card group"><div class="set"><div class="l"><b>Input device</b><span>Used for all dictation</span></div><select id="mic"></select></div></div>
+    <div class="eyebrow group-title">Shortcuts</div>
+    <div class="card group" id="shortcuts"></div>
+    <div class="err" id="sc-err"></div>
+    <div class="eyebrow group-title">Polish prompts</div>
+    <div class="card group" id="prompts"></div>
+    <div class="eyebrow group-title">Backup</div>
+    <div class="card group"><div class="set"><div class="l"><b>Back up or restore</b><span>Settings, dictionary, snippets, learned words and history in one file. It holds everything you've dictated, so keep it somewhere private</span></div>
+      <div class="row" style="flex:none"><button class="btn ghost" id="restore">Restore…</button><button class="btn" id="backup">Back up…</button></div></div></div>
+    <div class="err" id="backup-err"></div>
+    <div class="eyebrow group-title">Help</div>
+    <div class="card group"><div class="set"><div class="l"><b>Welcome tour</b><span>The intro again: mic check, shortcuts and how Conure learns</span></div>
+      <button class="btn ghost" id="replay-tour">Show tour</button></div></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<div class="onboard" id="onboard" hidden>
+  <div class="ob-card" role="dialog" aria-modal="true" aria-label="Welcome to Conure">
+    <div class="ob-dots" id="ob-dots"></div>
+    <div class="ob-step" id="ob-step"></div>
+    <div class="ob-nav"><button class="toggle-heard skip" id="ob-skip">Skip the tour</button>
+      <button class="btn ghost" id="ob-back">Back</button><button class="btn" id="ob-next">Next</button></div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ICON_COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const ICON_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+let api, cfg, rows = [], signature = "";
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1600);
+}
+const KEY_NAMES = { ctrl: "Ctrl", windows: "Win", alt: "Alt", shift: "Shift", esc: "Esc", space: "Space", enter: "Enter", tab: "Tab" };
+const keyName = (k) => KEY_NAMES[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1));
+const pretty = (combo) => (combo || "").split("+").filter(Boolean).map(keyName).join("+");
+const keycaps = (combo) => combo ? combo.split("+").map((k) => `<kbd>${esc(keyName(k))}</kbd>`).join("") : "Not set";
+const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function dayLabel(ts) {
+  const d = new Date(ts * 1000), today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
+  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+}
+
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".page").forEach((p) => p.classList.toggle("on", p.id === b.dataset.page));
+  if (b.dataset.page === "dictionary") loadDictionary();
+  if (b.dataset.page === "snippets") loadSnippets();
+});
+
+async function copy(text) { await api.copy(text); toast("Copied to clipboard"); }
+
+// The unedited transcript, exactly as the speech model heard it, before any cleanup
+function heardBox(r) {
+  const same = r.raw.trim() === r.text.trim();
+  return `<div class="head"><span class="label">What Conure heard</span>${same ? "" : `<button class="icon" data-act="copy-raw" title="Copy the original">${ICON_COPY}</button>`}</div>`
+    + (same ? `<div class="same">Same as above: no changes were needed.</div>` : `<div class="raw">${esc(r.raw)}</div>`);
+}
+
+async function loadHome() {
+  const q = $("#search").value.trim();
+  rows = await api.history(q);
+  const s = await api.stats();
+  $("#s-words").textContent = s.words_today.toLocaleString();
+  $("#s-wpm").textContent = s.wpm ? s.wpm.toLocaleString() : "–";
+  $("#s-saved").textContent = s.saved_min >= 90 ? `${(s.saved_min / 60).toFixed(1)} h` : `${s.saved_min} min`;
+  $("#s-total").textContent = s.words_total.toLocaleString();
+  const last = (await api.history("", 1))[0];
+  $("#last-text").textContent = last ? last.text : `Nothing yet. Hold ${pretty(cfg.shortcuts.dictate)} and Conure will write it down.`;
+  $("#last-text").classList.toggle("placeholder", !last);
+  $("#last-meta").textContent = last ? `${last.app || "Unknown app"} · ${dayLabel(last.ts)} at ${clock(last.ts)} · ${last.text.split(/\s+/).filter(Boolean).length} words` : "";
+  $("#last-copy").style.visibility = last ? "visible" : "hidden";
+  $("#last-copy").onclick = () => last && copy(last.text);
+  $("#last-heard").innerHTML = last ? heardBox(last) : "";
+  $("#last-heard").onclick = (e) => { if (last && e.target.closest('[data-act="copy-raw"]')) copy(last.raw); };
+  $("#last-heard-toggle").style.display = last ? "" : "none";
+  $("#last-heard-toggle").onclick = () => {
+    const on = $("#last-heard").classList.toggle("on");
+    $("#last-heard-toggle").textContent = on ? "Hide what Conure heard" : "Show what Conure heard";
+  };
+
+  if (!rows.length) { $("#history").innerHTML = `<div class="card empty">${q ? "No dictations match your search." : "Your dictations will show up here."}</div>`; return; }
+  let html = "", day = null;
+  for (const r of rows) {
+    const label = dayLabel(r.ts);
+    if (label !== day) { html += (day ? "</div>" : "") + `<div class="day">${label}</div><div class="card list">`; day = label; }
+    html += `<div class="item" data-id="${r.id}"><time>${clock(r.ts)}</time><div><div class="t">${esc(r.text)}</div>
+      <div class="app">${esc(r.app || "")}<span class="more">Click to see what Conure heard</span></div><div class="heard">${heardBox(r)}</div></div>
+      <div class="acts"><button class="icon" data-act="copy" title="Copy">${ICON_COPY}</button><button class="icon" data-act="delete" title="Delete">${ICON_TRASH}</button></div></div>`;
+  }
+  $("#history").innerHTML = html + "</div>";
+}
+
+$("#history").onclick = async (e) => {
+  const item = e.target.closest(".item"); if (!item) return;
+  const r = rows.find((x) => x.id == item.dataset.id), act = e.target.closest("[data-act]")?.dataset.act;
+  if (act === "copy") return copy(r.text);
+  if (act === "copy-raw") return copy(r.raw);
+  if (e.target.closest(".heard")) return;  // reading/selecting the original shouldn't collapse the row
+  if (act === "delete") { await api.delete(r.id); toast("Deleted"); return refresh(true); }
+  if (!getSelection().toString()) item.classList.toggle("open");
+};
+let searchTimer;
+$("#search").oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadHome, 150); };
+
+async function refresh(force) {
+  const sig = await api.signature();
+  if (force || sig !== signature) { signature = sig; await loadHome(); }
+}
+
+// ---------- Settings (auto-save) ----------
+function renderSettings(state) {
+  const toggles = [["cleanup", "AI cleanup", "Removes ums, applies self-corrections, fixes punctuation"],
+                   ["learn_from_edits", "Learn from my edits", "Remembers words you fix after they're pasted"],
+                   ["sounds", "Sounds", "A short tone when recording starts and stops"],
+                   ["start_with_windows", "Open Conure when Windows starts", "Ready to talk as soon as you sign in"],
+                   ["start_in_tray", "Start in the tray", "When Conure opens with Windows, it waits in the tray instead of opening this window"],
+                   ["close_to_tray", "Close button keeps Conure in the tray", "Off: closing this window quits Conure completely"],
+                   ["game_mode", "Game mode", "While a full-screen game is in front, Conure sleeps: it frees about 4 GB of graphics memory and 3 GB of RAM and stops reading your keyboard. It wakes a few seconds after you switch away"],
+                   ["pause_media", "Pause music while talking", "Pauses Spotify, YouTube and other players, then resumes them"],
+                   ["whisper_boost", "Whisper boost", "Lets you dictate quietly and still get accurate text"],
+                   ["undo_cleanup", "Undo the cleanup", "Press Ctrl+Z right after Conure pastes to get your exact words instead"],
+                   ["screen_context", "Spell names from your screen", "Names in the window you're typing in (email senders, chat names) get spelled right. Read on this PC only, never saved"]];
+  $("#toggles").innerHTML = toggles.map(([k, b, s]) => `<div class="set"><div class="l"><b>${b}</b><span>${s}</span></div>
+    <label class="switch"><input type="checkbox" data-key="${k}" ${cfg[k] ? "checked" : ""}><i></i></label></div>`).join("");
+  $("#bullet").value = cfg.bullet || "*";
+  $("#pill").value = cfg.pill;
+  $("#mic").innerHTML = state.mics.map((m) => `<option ${(cfg.mic || "Windows default") === m ? "selected" : ""}>${esc(m)}</option>`).join("");
+  $("#shortcuts").innerHTML = state.shortcut_labels.map(([k, label]) => `<div class="set"><div class="l"><b>${esc(label)}</b><span>Click to change</span></div>
+    <div class="sc" data-sc="${k}" data-value="${esc(cfg.shortcuts[k] || "")}"></div></div>`).join("");
+  document.querySelectorAll("[data-sc]").forEach((el) => scIdle(el));
+  $("#prompts").innerHTML = [["polish", "Polish", "Selected text + " + pretty(cfg.shortcuts.polish)], ["polish_2", "Custom polish", "Selected text + " + pretty(cfg.shortcuts.polish_2)]]
+    .map(([k, b, s]) => `<div class="set"><div class="l"><b>${b}</b><span>${esc(s)}</span></div><input type="text" class="wide" data-prompt="${k}" value="${esc(cfg.polish_prompts[k] || "")}"></div>`).join("");
+  $("#k-dictate").textContent = pretty(cfg.shortcuts.dictate);
+  $("#k-paste").textContent = pretty(cfg.shortcuts.paste_last);
+}
+
+async function saveSettings() {
+  const next = JSON.parse(JSON.stringify(cfg));
+  document.querySelectorAll("[data-key]").forEach((i) => next[i.dataset.key] = i.checked);
+  next.mic = $("#mic").value === "Windows default" ? null : $("#mic").value;
+  next.bullet = $("#bullet").value;
+  next.pill = $("#pill").value;
+  document.querySelectorAll("[data-sc]").forEach((el) => next.shortcuts[el.dataset.sc] = el.dataset.value);
+  document.querySelectorAll("[data-prompt]").forEach((i) => next.polish_prompts[i.dataset.prompt] = i.value.trim());
+  const res = await api.save_settings(next);
+  $("#sc-err").textContent = res.ok ? "" : res.error;
+  if (res.ok) { cfg = res.cfg; renderSettings(await api.state()); toast("Saved"); }
+  return res.ok;
+}
+
+// Shortcut recorder: click -> "Press your keys…" -> shows what you pressed -> ✓ saves, ✕ reverts
+let capturing = null;
+function scIdle(el) {
+  el.innerHTML = `<button class="capture" title="Click, then press the keys you want">${keycaps(el.dataset.value)}</button>`;
+  el.querySelector(".capture").onclick = () => scListen(el);
+}
+async function scListen(el) {
+  if (capturing) return;
+  capturing = el;
+  $("#sc-err").textContent = "";
+  el.innerHTML = `<div class="capture listening">Press your keys…</div><button class="icon" title="Cancel">${ICON_X}</button>`;
+  el.querySelector(".icon").onclick = () => api.cancel_capture();
+  const combo = await api.capture_shortcut();
+  capturing = null;
+  if (!combo) return scIdle(el);
+  el.innerHTML = `<div class="capture pending">${keycaps(combo)}</div>
+    <button class="icon ok" title="Use this shortcut">${ICON_OK}</button><button class="icon" title="Cancel">${ICON_X}</button>`;
+  const [ok, cancel] = el.querySelectorAll(".icon");
+  cancel.onclick = () => scIdle(el);
+  ok.onclick = async () => {
+    const before = el.dataset.value;
+    el.dataset.value = combo;
+    if (!(await saveSettings())) { el.dataset.value = before; scIdle(el); }
+  };
+}
+document.querySelector("#settings").addEventListener("change", saveSettings);
+document.querySelector("#settings").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+$("#backup").onclick = async () => {
+  const r = await api.backup();
+  if (r) toast(`Backed up ${r.count.toLocaleString()} dictations to ${r.name}`);
+};
+$("#restore").onclick = async () => {
+  const r = await api.restore(); if (!r) return;
+  $("#backup-err").textContent = r.ok ? "" : r.error;
+  if (!r.ok) return;
+  const st = await api.state(); cfg = st.cfg; renderSettings(st); refresh(true);
+  toast(r.count ? `Restored · ${r.count.toLocaleString()} dictations added` : "Restored");
+};
+
+// ---------- Dictionary ----------
+async function loadDictionary() {
+  const st = await api.state(); cfg = st.cfg;
+  $("#chips").innerHTML = cfg.dictionary.length ? cfg.dictionary.map((w, i) => `<span class="chip">${esc(w)}<button data-i="${i}" title="Remove">${ICON_X}</button></span>`).join("")
+    : `<span style="color:var(--ink3)">No words yet.</span>`;
+  $("#learned").innerHTML = st.learned.length ? st.learned.map((l) => `<div class="learn"><div>${esc(l.heard)}<span class="arrow">→</span><b>${esc(l.meant)}</b><small>seen ${l.count}×</small></div>
+    <button class="icon" data-forget="${esc(l.heard)}" title="Forget">${ICON_X}</button></div>`).join("")
+    : `<div class="empty">Nothing learned yet. Fix a misheard word right after it's pasted and it will appear here.</div>`;
+}
+async function saveWords(words) { await api.save_dictionary(words); await loadDictionary(); }
+$("#chips").onclick = (e) => { const b = e.target.closest("button[data-i]"); if (b) saveWords(cfg.dictionary.filter((_, i) => i != b.dataset.i)); };
+function addWord() { const w = $("#new-word").value.trim(); if (w && !cfg.dictionary.includes(w)) saveWords([...cfg.dictionary, w]); $("#new-word").value = ""; }
+$("#add-word").onclick = addWord;
+$("#new-word").onkeydown = (e) => { if (e.key === "Enter") addWord(); };  // must not return false: that cancels every keypress
+$("#learned").onclick = async (e) => { const b = e.target.closest("[data-forget]"); if (b) { await api.forget(b.dataset.forget); toast("Forgotten"); loadDictionary(); } };
+
+// ---------- Snippets ----------
+async function loadSnippets() {
+  const st = await api.state(); cfg = st.cfg;
+  const entries = Object.entries(cfg.snippets || {});
+  $("#snippet-list").innerHTML = entries.length ? entries.map(([t, body]) => `<div class="snip"><div class="trig">${esc(t)}</div><div class="body">${esc(body)}</div>
+    <button class="icon" data-del-snip="${esc(t)}" title="Delete">${ICON_TRASH}</button></div>`).join("")
+    : `<div class="empty">No snippets yet. Add one below, then just say its trigger.</div>`;
+}
+$("#add-snip").onclick = async () => {
+  const t = $("#snip-trigger").value.trim(), body = $("#snip-text").value.trim();
+  if (!t || !body) { $("#snip-err").textContent = !t ? "Add a trigger phrase first." : "Add the text to paste first."; return; }
+  $("#snip-err").textContent = "";
+  await api.save_snippets({ ...(cfg.snippets || {}), [t]: body });
+  $("#snip-trigger").value = ""; $("#snip-text").value = "";
+  toast("Snippet saved"); loadSnippets();
+};
+["#snip-trigger", "#snip-text"].forEach((s) => $(s).addEventListener("input", () => { $("#snip-err").textContent = ""; }));
+$("#snippet-list").onclick = async (e) => {
+  const b = e.target.closest("[data-del-snip]"); if (!b) return;
+  const next = { ...(cfg.snippets || {}) }; delete next[b.dataset.delSnip];
+  await api.save_snippets(next); toast("Snippet deleted"); loadSnippets();
+};
+
+// ---------- Welcome tour ----------
+let mics = ["Windows default"];
+const USES = [["emails", "Emails"], ["chat", "Chat & messages"], ["docs", "Docs & notes"], ["coding", "Coding & AI prompts"],
+              ["social", "Social posts"], ["other", "A bit of everything"]];
+const TIPS = {
+  emails: () => ["Snippets", "Save a sign-off or booking link once in Snippets, then just say its trigger, like “my signature”."],
+  chat: () => ["Quick replies", "Short messages come out casual, without a stiff period at the end."],
+  docs: () => ["Lists", "Count out loud, “one, buy milk, two, call Sam, three, …”, and you get a numbered list."],
+  coding: () => ["Command mode", `Select text, hold ${pretty(cfg.shortcuts.command)} and say what to do: “make this shorter”, “turn this into bullet points”.`],
+  social: () => ["Polish", `Select a draft and press ${pretty(cfg.shortcuts.polish)} to tighten it up.`],
+};
+const ob = { i: 0, name: "", uses: [], words: "", mic: null, timer: null };
+const li = (n, b, text) => `<li><span class="n">${n}</span><span><b>${b}</b> ${text}</span></li>`;
+const STEPS = [
+  { html: () => `<img class="ob-logo" src="icon.ico" alt=""><h1>Hi, I'm Conure</h1>
+      <p class="lead">I turn what you say into clean, ready-to-send text in any app. Everything runs on this PC, so nothing you say ever leaves it.</p>
+      <div class="ob-field"><label for="ob-name">What should I call you?</label><input type="text" id="ob-name" placeholder="Your first name" maxlength="60"></div>`,
+    enter: () => { $("#ob-name").value = ob.name; $("#ob-name").focus(); },
+    leave: () => { ob.name = $("#ob-name").value.trim(); } },
+  { html: () => `<h1>What will you use me for${ob.name ? ", " + esc(ob.name) : ""}?</h1><p class="lead">Pick as many as you like. I'll show you the tricks that fit.</p>
+      <div class="ob-chips">${USES.map(([k, l]) => `<button class="ob-chip" data-use="${k}" aria-pressed="${ob.uses.includes(k)}">${l}</button>`).join("")}</div>
+      <div class="ob-field"><label for="ob-words">Any names or words I should always spell right?</label>
+        <input type="text" id="ob-words" placeholder="Your company, a product, a teammate's name">
+        <span class="ob-note">Separate them with commas. You can add more later in the Dictionary.</span></div>`,
+    enter: () => {
+      $("#ob-words").value = ob.words;
+      document.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => {
+        const on = b.getAttribute("aria-pressed") !== "true";
+        b.setAttribute("aria-pressed", on);
+        ob.uses = on ? [...ob.uses, b.dataset.use] : ob.uses.filter((u) => u !== b.dataset.use);
+      });
+    },
+    leave: () => { ob.words = $("#ob-words").value; } },
+  { html: () => `<h1>Let's check your mic</h1><p class="lead">Say a few words. The bar should move while you talk.</p>
+      <div class="ob-field"><label for="ob-mic">Microphone</label><select id="ob-mic">${mics.map((m) => `<option>${esc(m)}</option>`).join("")}</select></div>
+      <div class="ob-meter"><i id="ob-level"></i></div>
+      <div class="ob-note" id="ob-mic-note">Soft voice? That's fine, quiet speech gets boosted.</div>`,
+    enter: () => { $("#ob-mic").value = ob.mic || cfg.mic || "Windows default"; $("#ob-mic").onchange = startMic; startMic(); },
+    leave: () => { ob.mic = $("#ob-mic").value; stopMic(); } },
+  { html: () => `<h1>Try it</h1><p class="lead">Click in the box below, then hold the keys, talk, and let go.</p>
+      <div class="ob-keys">${keycaps(cfg.shortcuts.dictate)}<span>hold while you talk</span></div>
+      <textarea id="ob-try" rows="4" placeholder="Your words will show up here"></textarea>
+      <ul class="ob-list" style="margin-top:18px">
+        ${li("2×", "Double-tap", "for hands-free. Tap once more to stop.")}
+        ${li("Esc", "Esc", "cancels while you're recording.")}
+        ${li("↺", pretty(cfg.shortcuts.paste_last), "pastes your last dictation again.")}
+      </ul>`,
+    enter: () => $("#ob-try").focus() },
+  { html: () => `<h1>How I learn</h1><p class="lead">The more you use me, the better I get. All of it stays on this PC.</p>
+      <ul class="ob-list">
+        ${li(1, "Fix a word right after I paste it", "and I'll remember. Fix the same word twice and I correct it for you from then on.")}
+        ${li(2, "Names on your screen,", "like an email sender or a chat name, get spelled the way they're written there.")}
+        ${li(3, "Dictionary and Snippets", "in the sidebar: words to always spell your way, and saved text you paste by saying a trigger.")}
+        ${ob.uses.filter((u) => TIPS[u]).slice(0, 2).map((u, k) => { const [b, t] = TIPS[u](); return li(4 + k, b + ":", t); }).join("")}
+      </ul>` },
+  { html: () => `<img class="ob-logo" src="icon.ico" alt=""><h1>You're all set${ob.name ? ", " + esc(ob.name) : ""}</h1>
+      <p class="lead">I live in the tray next to the clock. Click the parrot any time to open this window.</p>
+      <ul class="ob-list">
+        ${li("✓", "Game mode:", "while a full-screen game is running I go to sleep to free up memory, and wake up when you switch away.")}
+        ${li("✓", "Microphone:", "Windows shows its mic icon while I'm running. I only keep audio while you hold the shortcut.")}
+        ${li("✓", "Your history", "is saved only on this PC. You can delete entries, or back everything up from Settings.")}
+      </ul>` },
+];
+
+async function startMic() {
+  stopMic();
+  const r = await api.mic_start($("#ob-mic").value);
+  $("#ob-mic-note").textContent = r.ok ? "Soft voice? That's fine, quiet speech gets boosted." : r.error;
+  if (r.ok) ob.timer = setInterval(async () => {
+    const bar = $("#ob-level");
+    if (bar) bar.style.transform = `scaleX(${Math.min(1, (await api.mic_level() * 14) ** 0.6)})`;
+  }, 90);
+}
+function stopMic() { clearInterval(ob.timer); ob.timer = null; api && api.mic_stop(); }
+
+function showStep(i, dir = "fwd") {
+  ob.i = i;
+  const el = $("#ob-step");
+  el.innerHTML = STEPS[i].html();
+  el.className = "ob-step";
+  void el.offsetWidth;  // restart the slide-in
+  el.classList.add(dir);
+  $("#ob-dots").innerHTML = STEPS.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("");
+  $("#ob-back").style.visibility = i ? "visible" : "hidden";
+  $("#ob-next").textContent = i === STEPS.length - 1 ? "Start using Conure" : "Next";
+  STEPS[i].enter && STEPS[i].enter();
+}
+function move(delta) {
+  STEPS[ob.i].leave && STEPS[ob.i].leave();
+  if (ob.i + delta >= STEPS.length) return finishTour();
+  showStep(ob.i + delta, delta > 0 ? "fwd" : "back");
+}
+function startTour() {
+  Object.assign(ob, { name: cfg.user_name || "", uses: [...(cfg.use_cases || [])], words: "", mic: null });
+  $("#onboard").hidden = false;
+  showStep(0);
+}
+async function finishTour() {
+  STEPS[ob.i].leave && STEPS[ob.i].leave();
+  stopMic();
+  cfg = await api.finish_onboarding({ name: ob.name, uses: ob.uses, mic: ob.mic || cfg.mic || "Windows default",
+                                      words: ob.words.split(",").map((w) => w.trim()).filter(Boolean) });
+  $("#onboard").hidden = true;
+  renderSettings(await api.state());
+  greet();
+  toast(ob.name ? `Nice to meet you, ${ob.name}` : "You're all set");
+}
+function greet() { $("#hello").textContent = cfg.user_name ? `Hey ${cfg.user_name}, welcome back` : "Hey, welcome back"; }
+$("#ob-next").onclick = () => move(1);
+$("#ob-back").onclick = () => move(-1);
+$("#ob-skip").onclick = finishTour;
+$("#ob-step").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") move(1); });
+$("#replay-tour").onclick = startTour;
+
+// ---------- Day / night ----------
+function showTheme() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  $("#theme").setAttribute("aria-checked", dark);
+  $("#theme").title = dark ? "Switch to Daylight" : "Switch to Night roost";
+  $("#theme-name").textContent = dark ? "Night roost" : "Daylight";
+}
+function setTheme(next) {
+  const apply = () => { document.documentElement.dataset.theme = next; showTheme(); };
+  if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return apply();
+  const r = $("#theme").getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const vt = document.startViewTransition(apply);
+  vt.ready.then(() => document.documentElement.animate(
+    { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+    { duration: 650, easing: "cubic-bezier(0.65, 0, 0.35, 1)", pseudoElement: "::view-transition-new(root)" })).catch(() => {});
+  setTimeout(() => {  // a window that isn't drawing (minimized, covered) never starts the wipe: switch anyway
+    if (document.documentElement.dataset.theme !== next) { vt.skipTransition(); apply(); }
+  }, 400);
+}
+$("#theme").onclick = () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  setTheme(next);
+  if (cfg) cfg.theme = next;  // picked by hand: stop following Windows
+  api && api.set_theme(next);
+};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {  // "auto": follow Windows live
+  if (cfg && cfg.theme === "auto") setTheme(e.matches ? "dark" : "light");
+});
+showTheme();
+
+window.addEventListener("pywebviewready", async () => {
+  api = window.pywebview.api;
+  const st = await api.state(); cfg = st.cfg; mics = st.mics;
+  renderSettings(st);
+  greet();
+  if (!cfg.onboarded) startTour();  // first launch
+  await refresh(true);
+  setInterval(() => refresh(false), 1000);  // new dictations appear live
+});
+</script>
+</body>
+</html>
